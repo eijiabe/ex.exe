@@ -1,0 +1,46 @@
+#include <Windows.h>
+#include <Shlwapi.h> // Para usar a função PathFindExtension
+#include <iostream>
+
+LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode == HC_ACTION && wParam == WM_CREATE) {
+        LPCREATESTRUCT pcs = (LPCREATESTRUCT) lParam;
+        LPCWSTR className = pcs->lpszClass;
+        if (className && wcsicmp(className, L"ApplicationFrameWindow") != 0) {
+            // Verifica se o nome do arquivo do aplicativo termina com .exe
+            WCHAR fileName[MAX_PATH];
+            DWORD result = GetModuleFileName(NULL, fileName, MAX_PATH);
+            if (result == 0) {
+                std::cerr << "Erro ao obter o nome do arquivo do aplicativo: " << GetLastError() << std::endl;
+            } else if (result == MAX_PATH) {
+                std::cerr << "O caminho do arquivo do aplicativo é maior do que MAX_PATH." << std::endl;
+            } else if (wcsicmp(PathFindExtension(fileName), L".exe") == 0) {
+                return 1; // Impede a criação da janela para arquivos .exe
+            }
+        }
+    }
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
+}
+
+int main() {
+    // Instala o hook de janela
+    HHOOK hook = SetWindowsHookEx(WH_CBT, HookProc, NULL, GetCurrentThreadId());
+
+    if (hook == NULL) {
+        // O hook não pode ser instalado. Termina o programa.
+        std::cerr << "Erro ao instalar o hook de janela: " << GetLastError() << std::endl;
+        return 1;
+    }
+
+    std::cout << "Hook instalado. Pressione qualquer tecla para terminar o programa." << std::endl;
+
+    // Aguarda até que o usuário pressione uma tecla
+    getchar();
+
+    // Remove o hook
+    if (!UnhookWindowsHookEx(hook)) {
+        std::cerr << "Erro ao remover o hook de janela: " << GetLastError() << std::endl;
+    }
+
+    return 0;
+}
